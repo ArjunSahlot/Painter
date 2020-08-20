@@ -1,3 +1,5 @@
+import math
+
 import pygame
 import os
 import colorsys
@@ -25,9 +27,9 @@ MAXBRUSHSIZE = 50
 ERASER = pygame.transform.scale(pygame.image.load(os.path.join("assets", "eraser_icon.png")), (SMALLERBOXWIDTH, SMALLERBOXWIDTH))
 CLEAR = pygame.transform.scale(pygame.image.load(os.path.join("assets", "clear_screen.png")), (SMALLERBOXWIDTH - 14, SMALLERBOXWIDTH - 14))
 PICKER = pygame.transform.scale(pygame.image.load(os.path.join("assets", "color_picker.png")), (170, 170))
-SLIDER = pygame.Surface((WIDTH, HEIGHT))
+SLIDER = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
 COLORPOS = (85, 85)
-VALUEPOS = (15 + BOXWIDTH*2 + 15 + 15 + 80 + PICKER.get_width() + 50 + 10, 940)
+VALUEPOS = (555, 880)
 
 
 def get_color(colorpos, valuepos):
@@ -54,6 +56,7 @@ WHITE = (255, 255, 255)
 LIGHTGREY = (200, 200, 200)
 GREY = (128, 128, 128)
 BLACK = (0, 0, 0)
+TRANSPARENT = (0, 0, 0, 0)
 
 
 CURRENTCOLOR = get_color(COLORPOS, VALUEPOS)
@@ -82,9 +85,12 @@ def draw_window(win, width, height):
     clear_text = FONT_S.render("Clear Screen", 1, BLACK)
     win.blit(clear_text, (975 - SMALLERBOXWIDTH//2 - clear_text.get_width()//2 - 10, height - BOTTOMBARHEIGHT + 25 + 15 + 5 + 15 + size_text.get_height() + SMALLERBOXWIDTH + 5))
     win.blit(PICKER, (15 + BOXWIDTH*2 + 15 + 15 + 80, height - BOTTOMBARHEIGHT + 5))
-    pygame.draw.circle(win, WHITE, (15 + BOXWIDTH*2 + 15 + 15 + 80 + 85, height - BOTTOMBARHEIGHT + 5 + 85), 5)
+    pygame.draw.circle(win, WHITE, (COLORPOS[0] + 15 + BOXWIDTH*2 + 15 + 15 + 80, COLORPOS[1] + height - BOTTOMBARHEIGHT + 5), 5)
     pygame.draw.circle(win, BLACK, (COLORPOS[0] + 15 + BOXWIDTH*2 + 15 + 15 + 80, COLORPOS[1] + height - BOTTOMBARHEIGHT + 5), 6, 1)
     draw_slider(15 + BOXWIDTH*2 + 15 + 15 + 80 + PICKER.get_width() + 50, height - BOTTOMBARHEIGHT + 5, 20, PICKER.get_height())
+    win.blit(SLIDER, (0, 0))
+    pygame.draw.circle(win, WHITE, (555, VALUEPOS[1]), 5)
+    pygame.draw.circle(win, BLACK, (555, VALUEPOS[1]), 6, 1)
 
 
 def close_to_white():
@@ -94,9 +100,10 @@ def close_to_white():
 
 
 def draw_slider(x, y, width, height):
+    SLIDER.fill(TRANSPARENT)
     for i in range(x, x + width + 1):
         for j in range(y, y + height + 1):
-            SLIDER.set_at((i, j), ((j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (255/170), (j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (255/170), (j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (255/170)))
+            SLIDER.set_at((i, j), ((j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (-255/170) + 255, (j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (-255/170) + 255, (j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (-255/170) + 255))
 
 
 def get_value(color):
@@ -108,7 +115,9 @@ def update_picker():
     w, h = PICKER.get_size()
     for x in range(w):
         for y in range(h):
-            PICKER.set_at((x, y), change_value(PICKER.get_at((x, y)), get_value(get_color(COLORPOS, VALUEPOS))))
+            if math.sqrt((y - 85)**2 + (x - 85)**2) < 85:
+                color = PICKER.get_at((x, y))
+                PICKER.set_at((x, y), change_value(color, get_value(get_color(COLORPOS, VALUEPOS))))
 
 
 def change_value(color, value):
@@ -126,8 +135,8 @@ def main(win, width, height):
             if event.type == pygame.QUIT:
                 run = False
 
-        update_picker()
         draw_window(win, width, height)
+        update_picker()
         pygame.display.update()
 
 
