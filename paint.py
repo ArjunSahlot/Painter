@@ -8,7 +8,7 @@ pygame.init()
 
 WIDTH, HEIGHT = 1000, 1000
 WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Painter, By: Arjun Sahlot")
+pygame.display.set_caption("Painter")
 pygame.display.set_icon(pygame.image.load(os.path.join("assets", "icon.png")))
 
 # Fonts
