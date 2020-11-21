@@ -2,14 +2,16 @@ import math
 
 import pygame
 import os
-import colorsys
+from colorsys import *
+import numpy as np
+
 
 pygame.init()
 
 WIDTH, HEIGHT = 1000, 1000
 WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Painter")
-pygame.display.set_icon(pygame.image.load(os.path.join("assets", "icon.png")))
+pygame.display.set_icon(pygame.image.load(os.path.join(os.path.realpath(os.path.dirname(__file__)), "assets", "icon.png")))
 
 # Fonts
 FONT_ES = pygame.font.SysFont("comicsans", 15)
@@ -23,31 +25,111 @@ SMALLERBOXWIDTH = 70
 BRUSHSIZE = 9
 MAXBRUSHSIZE = 60
 
+
+class ColorPicker:
+    def __init__(self, wheelPos, wheelRad, sliderPos, sliderSize, sliderHoriz, sliderInvert, cursorRad, displayRectLoc, displayRectSize=(150, 150)):
+        self.wheelPos, self.wheelRad = wheelPos, wheelRad
+        self.sliderPos, self.sliderSize, self.sliderHoriz, self.sliderInvert = sliderPos, sliderSize, sliderHoriz, sliderInvert
+        self.cursorRad = cursorRad
+        self.displayRectLoc, self.displayRectSize = displayRectLoc, displayRectSize
+        self.wheelCursor, self.sliderCursor = list((wheelPos[0] - cursorRad, wheelPos[1] - cursorRad)), list(
+            (sliderPos[0] + sliderSize[0]//2 - cursorRad, sliderPos[1] + sliderSize[1]//2 - cursorRad))
+        self.sliderSurf = pygame.Surface(sliderSize)
+        self.wheelSurf = pygame.transform.scale(
+            pygame.image.load(os.path.join(os.path.realpath(os.path.dirname(__file__)), "assets", "color_picker.png")), (wheelRad*2,)*2)
+        self.cursorSurf = pygame.Surface(
+            (self.cursorRad*2,)*2, pygame.SRCALPHA)
+        self.wheelDarken = pygame.Surface((wheelRad*2,)*2, pygame.SRCALPHA)
+        self._CreateWheel()
+        self._CreateSlider()
+        self._CreateCursor()
+        self._UpdateWheel()
+
+    def Draw(self, window):
+        pygame.draw.rect(window, self.GetRGB(),
+                         (*self.displayRectLoc, *self.displayRectSize))
+        window.blit(self.sliderSurf, self.sliderPos)
+        window.blit(self.cursorSurf, self.sliderCursor)
+        window.blit(
+            self.wheelSurf, (self.wheelPos[0] - self.wheelRad, self.wheelPos[1] - self.wheelRad))
+        window.blit(
+            self.wheelDarken, (self.wheelPos[0] - self.wheelRad, self.wheelPos[1] - self.wheelRad))
+        window.blit(self.cursorSurf, self.wheelCursor)
+
+    def Update(self, window):
+        self.Draw(window)
+        if pygame.mouse.get_pressed()[0]:
+            x, y = pygame.mouse.get_pos()
+            if ((self.wheelPos[0] - x)**2 + (self.wheelPos[1] - y)**2)**0.5 < self.wheelRad - 2:
+                self.wheelCursor = (x - self.cursorRad, y - self.cursorRad)
+            elif self.sliderPos[0] < x < self.sliderPos[0] + self.sliderSize[0] and self.sliderPos[1] < y < self.sliderPos[1] + self.sliderSize[1]:
+                self.sliderCursor[1] = y - self.cursorRad
+                self._UpdateWheel()
+
+    def GetRGB(self):
+        wrgb = self.wheelSurf.get_at((self.wheelCursor[0] - self.wheelPos[0] + self.cursorRad +
+                                      self.wheelRad, self.wheelCursor[1] - self.wheelPos[1] + self.cursorRad + self.wheelRad))
+        srgb = self.sliderSurf.get_at(
+            (self.sliderCursor[0] - self.sliderPos[0] + self.cursorRad, self.sliderCursor[1] - self.sliderPos[1] + self.cursorRad))
+        whsv = rgb_to_hsv(*(np.array(wrgb)/255)[:3])
+        shsv = rgb_to_hsv(*(np.array(srgb)/255)[:3])
+        hsv = (whsv[0], whsv[1], shsv[2])
+        rgb = np.array(hsv_to_rgb(*hsv))*255
+        return rgb
+
+    def GetHSV(self):
+        rgb = (np.array(self.GetRGB())/255)[:3]
+        return np.array(rgb_to_hsv(*rgb))*255
+
+    def _UpdateWheel(self):
+        pygame.draw.circle(self.wheelDarken, (0, 0, 0, np.interp(
+            self.GetHSV()[2], (0, 255), (255, 0))), (self.wheelRad,)*2, self.wheelRad)
+
+    def _CreateWheel(self):
+        pygame.draw.circle(self.wheelSurf, (0, 0, 0),
+                           (self.wheelRad,)*2, self.wheelRad, 2)
+
+    def _CreateSlider(self):
+        w, h = self.sliderSize
+        if self.sliderHoriz:
+            for x in range(w):
+                if self.sliderInvert:
+                    value = np.interp(x, (0, w), (0, 255))
+                else:
+                    value = np.interp(x, (0, w), (255, 0))
+                pygame.draw.rect(self.sliderSurf, (value,)*3, (x, 0, 1, h))
+
+        else:
+            for y in range(h):
+                if self.sliderInvert:
+                    value = np.interp(y, (0, h), (0, 255))
+                else:
+                    value = np.interp(y, (0, h), (255, 0))
+                pygame.draw.rect(self.sliderSurf, (value,)*3, (0, y, w, 1))
+        pygame.draw.rect(self.sliderSurf, (0, 0, 0), (0, 0, w, h), 1)
+
+    def _CreateCursor(self):
+        self.cursorSurf.fill((0, 0, 0, 0))
+        pygame.draw.circle(self.cursorSurf, (255, 255, 255),
+                           (self.cursorRad,)*2, self.cursorRad)
+        pygame.draw.circle(self.cursorSurf, (0, 0, 0),
+                           (self.cursorRad,)*2, self.cursorRad, 2)
+
+
 # Images
-ERASER = pygame.transform.scale(pygame.image.load(os.path.join("assets", "eraser_icon.png")), (SMALLERBOXWIDTH, SMALLERBOXWIDTH))
-CLEAR = pygame.transform.scale(pygame.image.load(os.path.join("assets", "clear_screen.png")), (SMALLERBOXWIDTH - 14, SMALLERBOXWIDTH - 14))
-PICKER = pygame.transform.scale(pygame.image.load(os.path.join("assets", "color_picker.png")), (170, 170))
-SLIDER = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-COLORPOS = (85, 85)
-VALUEPOS = (515, 830)
-
-
-def get_color(colorpos, valuepos):
-    hsv_col = rgb_to_hsv(PICKER.get_at(colorpos))
-    hue = hsv_col[0]
-    sat = hsv_col[1]
-    val = rgb_to_hsv(SLIDER.get_at(valuepos))[2]
-    return hsv_to_rgb((hue, sat, val))
-
-
-def hsv_to_rgb(color):
-    color = colorsys.hsv_to_rgb(color[0] / 255, color[1] / 255, color[2] / 255)
-    return color[0] * 255, color[1] * 255, color[2] * 255
-
-
-def rgb_to_hsv(color):
-    color = colorsys.rgb_to_hsv(color[0] / 255, color[1] / 255, color[2] / 255)
-    return color[0] * 255, color[1] * 255, color[2] * 255
+ERASER = pygame.transform.scale(pygame.image.load(os.path.join(os.path.realpath(os.path.dirname(__file__)), "assets", "eraser_icon.png")), (SMALLERBOXWIDTH, SMALLERBOXWIDTH))
+CLEAR = pygame.transform.scale(pygame.image.load(os.path.join(os.path.realpath(os.path.dirname(__file__)), "assets", "clear_screen.png")), (SMALLERBOXWIDTH - 14, SMALLERBOXWIDTH - 14))
+picker = ColorPicker(
+    (15 + BOXWIDTH * 2 + 100 + 50, HEIGHT - BOTTOMBARHEIGHT + 90),
+    85,
+    (BOXWIDTH*2 + 270, HEIGHT - BOTTOMBARHEIGHT + 5),
+    (20, 170),
+    False,
+    False,
+    5,
+    (BOXWIDTH*2 + 330, HEIGHT - BOTTOMBARHEIGHT + 15),
+    (BOXWIDTH + 50, BOXWIDTH + 50))
+CURRENTCOLOR = picker.GetRGB()
 
 
 # Colors
@@ -59,21 +141,18 @@ BLACK = (0, 0, 0)
 TRANSPARENT = (0, 0, 0, 0)
 
 
-CURRENTCOLOR = get_color(COLORPOS, VALUEPOS)
-
-
-def draw_window(win, width, height, picker_changed, slider_changed, erasing, square_cursor, mode):
+def draw_window(win, width, height, erasing, square_cursor):
     win.fill(LIGHTGREY, (0, height - BOTTOMBARHEIGHT, width, BOTTOMBARHEIGHT))
 
     square_box = pygame.draw.rect(win, BLACK if not square_cursor else GREEN, (15, height - BOTTOMBARHEIGHT + 15, BOXWIDTH, BOXWIDTH), 5)
-    pygame.draw.rect(win, CURRENTCOLOR if not close_to_white() else BLACK, (40, height - BOTTOMBARHEIGHT + 40, BOXWIDTH - 50, BOXWIDTH - 50)) # 50=(40-15)*2
+    pygame.draw.rect(win, CURRENTCOLOR, (40, height - BOTTOMBARHEIGHT + 40, BOXWIDTH - 50, BOXWIDTH - 50))
     square_text = FONT_D.render("Square Pen", 1, BLACK)
     win.blit(square_text, (15 + BOXWIDTH - square_text.get_width(), height - BOTTOMBARHEIGHT + 15 + BOXWIDTH + 5))
 
     circle_box = pygame.draw.rect(win, BLACK if square_cursor else GREEN, (15 + BOXWIDTH + 15 + 15, height - BOTTOMBARHEIGHT + 15, BOXWIDTH, BOXWIDTH), 5)
     circle_text = FONT_D.render("Circle Pen", 1, BLACK)
     win.blit(circle_text, (15 + BOXWIDTH + BOXWIDTH + 15 + 4 - circle_text.get_width(), height - BOTTOMBARHEIGHT + 15 + BOXWIDTH + 5))
-    pygame.draw.circle(win, CURRENTCOLOR if not close_to_white() else BLACK, (15 + BOXWIDTH + 15 + 15 + BOXWIDTH//2, height - BOTTOMBARHEIGHT + 15 + BOXWIDTH//2), 25)
+    pygame.draw.circle(win, CURRENTCOLOR, (15 + BOXWIDTH + 15 + 15 + BOXWIDTH//2, height - BOTTOMBARHEIGHT + 15 + BOXWIDTH//2), 25)
 
     slider_box = pygame.draw.rect(win, GREY, (width - 25 - 240, height - BOTTOMBARHEIGHT + 25, 240, 15))  # (735, 845, 240, 15)
     pygame.draw.circle(win, WHITE, (BRUSHSIZE*(240//MAXBRUSHSIZE)+735, 845 + 15//2), 12)
@@ -90,23 +169,6 @@ def draw_window(win, width, height, picker_changed, slider_changed, erasing, squ
     clear_text = FONT_S.render("Clear Screen", 1, BLACK)
     win.blit(clear_text, (975 - SMALLERBOXWIDTH//2 - clear_text.get_width()//2 - 10, height - BOTTOMBARHEIGHT + 25 + 15 + 5 + 15 + size_text.get_height() + SMALLERBOXWIDTH + 5))
 
-    win.blit(PICKER, (15 + BOXWIDTH*2 + 15 + 15 + 80, height - BOTTOMBARHEIGHT + 5))
-    pygame.draw.circle(win, WHITE, (COLORPOS[0] + 15 + BOXWIDTH*2 + 15 + 15 + 80, COLORPOS[1] + height - BOTTOMBARHEIGHT + 5), 5)
-    pygame.draw.circle(win, BLACK, (COLORPOS[0] + 15 + BOXWIDTH*2 + 15 + 15 + 80, COLORPOS[1] + height - BOTTOMBARHEIGHT + 5), 6, 1)
-
-    if picker_changed:
-        draw_slider(15 + BOXWIDTH*2 + 15 + 15 + 80 + PICKER.get_width() + 10, height - BOTTOMBARHEIGHT + 5, 20, PICKER.get_height())
-        picker_changed = False
-    if slider_changed:
-        update_picker()
-        slider_changed = False
-
-    win.blit(SLIDER, (0, 0))
-    pygame.draw.circle(win, WHITE, (VALUEPOS[0], VALUEPOS[1]), 5)
-    pygame.draw.circle(win, BLACK, (VALUEPOS[0], VALUEPOS[1]), 6, 1)
-
-    pygame.draw.rect(win, CURRENTCOLOR, (15 + BOXWIDTH*2 + 15 + 15 + 80 + PICKER.get_width() + 10 + 20 + 15, height - BOTTOMBARHEIGHT + 15, BOXWIDTH + 50, BOXWIDTH + 50))
-
     info_text1 = FONT_D.render("Left Mouse Button: Normal Drawing", 1, BLACK)
     info_text2 = FONT_D.render("Middle Mouse Button: Draw Line", 1, BLACK)
     info_text3 = FONT_D.render("Right Mouse Button: Draw Dotted Line", 1, BLACK)
@@ -116,71 +178,21 @@ def draw_window(win, width, height, picker_changed, slider_changed, erasing, squ
     win.blit(info_text2, (text_x, text_y + info_text1.get_height() + 5))
     win.blit(info_text3, (text_x, text_y + info_text1.get_height() + 5 + info_text2.get_height() + 5))
 
-    return square_box, circle_box, slider_box, eraser_box, clear_box, (15 + BOXWIDTH*2 + 15 + 15 + 80 + PICKER.get_width() + 10, height - BOTTOMBARHEIGHT + 5, 20, PICKER.get_height()), picker_changed, slider_changed
-
-
-def close_to_white():
-    if sum(WHITE) > 240*3:
-        return True
-    return False
-
-
-def change_hue_sat(color, hue, sat):
-    hsv_col = list(rgb_to_hsv(color))
-    hsv_col[1] = hue
-    hsv_col[2] = sat
-    return hsv_to_rgb(hsv_col)
-
-
-def get_hue(color):
-    return rgb_to_hsv(color)[0]
-
-
-def get_sat(color):
-    return rgb_to_hsv(color)[1]
-
-
-def draw_slider(x, y, width, height):
-    global SLIDER
-    SLIDER.fill(TRANSPARENT)
-    for i in range(x, x + width + 1):
-        for j in range(y, y + height + 1):
-            b_w_color = [(j - (HEIGHT - BOTTOMBARHEIGHT + 5)) * (-255/170) + 255] * 3
-            SLIDER.set_at((i, j), change_hue_sat(b_w_color, get_hue(CURRENTCOLOR), get_sat(CURRENTCOLOR)))
-
-
-def get_value(color):
-    return rgb_to_hsv(color)[2]
-
-
-def update_picker():
-    global PICKER
-    w, h = PICKER.get_size()
-    for x in range(w):
-        for y in range(h):
-            if math.sqrt((y - 85)**2 + (x - 85)**2) < 85:
-                color = PICKER.get_at((x, y))
-                PICKER.set_at((x, y), change_value(color, get_value(CURRENTCOLOR)))
-
-
-def change_value(color, value):
-    new_color = list(rgb_to_hsv(color))
-    new_color[2] = value
-    return hsv_to_rgb(new_color)
+    return square_box, circle_box, slider_box, eraser_box, clear_box
 
 
 def main(win, width, height):
-    global BRUSHSIZE, COLORPOS, VALUEPOS, CURRENTCOLOR
+    global BRUSHSIZE, CURRENTCOLOR
     win.fill(WHITE)
     prevX, prevY = pygame.mouse.get_pos()
-    mode = 1
-    picker_changed = True
-    slider_changed = True
     erasing = False
     square_cursor = True
     run = True
     while run:
-        square_box, circle_box, slider_box, eraser_box, clear_box, value_box, picker_changed, slider_changed = draw_window(win, width, height, picker_changed, slider_changed, erasing, square_cursor, mode)
+        if not erasing:
+            CURRENTCOLOR = picker.GetRGB()
+        square_box, circle_box, slider_box, eraser_box, clear_box = draw_window(win, width, height, erasing, square_cursor)
+        picker.Update(win)
         mouseX, mouseY = pygame.mouse.get_pos()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -194,11 +206,11 @@ def main(win, width, height):
 
             if square_box.collidepoint(mouseX, mouseY):
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    square_cursor = True if square_cursor == False else False
+                    square_cursor = True if not square_cursor else False
 
             if circle_box.collidepoint(mouseX, mouseY):
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    square_cursor = False if square_cursor == True else True
+                    square_cursor = False if square_cursor else True
 
             if slider_box.collidepoint(mouseX, mouseY):
                 if pygame.mouse.get_pressed()[0]:
@@ -206,8 +218,8 @@ def main(win, width, height):
 
             if eraser_box.collidepoint(mouseX, mouseY):
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    erasing = True if erasing == False else False
-                    CURRENTCOLOR = WHITE if erasing else get_color(COLORPOS, VALUEPOS)
+                    erasing = True if not erasing else False
+                    CURRENTCOLOR = WHITE if erasing else picker.GetRGB()
 
             if clear_box.collidepoint(mouseX, mouseY):
                 if event.type == pygame.MOUSEBUTTONDOWN:
@@ -219,17 +231,6 @@ def main(win, width, height):
                         pygame.draw.rect(win, CURRENTCOLOR, (mouseX - BRUSHSIZE//2, mouseY - BRUSHSIZE//2, BRUSHSIZE, BRUSHSIZE))
                     else:
                         pygame.draw.circle(win, CURRENTCOLOR, (mouseX, mouseY), BRUSHSIZE*11//20)
-
-                if math.sqrt((mouseY - 910)**2 + (mouseX - 410)**2) < 85:
-                    COLORPOS = (mouseX - 325, mouseY - 825)
-                    CURRENTCOLOR = get_color(COLORPOS, VALUEPOS)
-                    picker_changed = True
-                    erasing = False
-                if value_box[0] < mouseX < value_box[0] + value_box[2] and value_box[1] < mouseY < value_box[1] + value_box[3]:
-                    VALUEPOS = (515, mouseY)
-                    CURRENTCOLOR = get_color(COLORPOS, VALUEPOS)
-                    slider_changed = True
-                    erasing = False
 
             if pygame.mouse.get_pressed()[2]:
                 if mouseY < HEIGHT - BOTTOMBARHEIGHT and math.sqrt((mouseY - prevY)**2 + (mouseX - prevX)**2) > BRUSHSIZE + 10:
