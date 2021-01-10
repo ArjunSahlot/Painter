@@ -1,2 +1,2 @@
-# Painter
+# painter
 A tool you can use to paint. Made with pygame.
